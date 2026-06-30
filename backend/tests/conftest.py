@@ -13,6 +13,8 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+import os
+
 from app.database import get_db
 from app.main import app
 from app.models.base import Base
@@ -20,8 +22,9 @@ from app.models.organisation import Organisation
 from app.models.period import Period
 from app.models.project import Project
 
-_ASYNC_URL = "postgresql+psycopg://postgres:password@localhost:5432/prosotapmo_test"
-_SYNC_URL = "postgresql+psycopg://postgres:password@localhost:5432/prosotapmo_test"
+_DEFAULT_URL = "postgresql+psycopg://postgres:password@localhost:5432/prosotapmo_test"
+_ASYNC_URL = os.environ.get("TEST_DATABASE_URL", _DEFAULT_URL)
+_SYNC_URL = _ASYNC_URL
 
 _async_engine = create_async_engine(_ASYNC_URL)
 _Session = async_sessionmaker(_async_engine, expire_on_commit=False)
