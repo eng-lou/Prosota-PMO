@@ -6,8 +6,11 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.database import get_db
 
 _jwks_client: PyJWKClient | None = None
 
@@ -53,3 +56,38 @@ async def get_current_user(
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
     return TokenPayload(sub=payload["sub"], email=payload.get("email"))
+
+
+async def get_db_user(
+    token: TokenPayload = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the DB User for the authenticated token, auto-provisioning on first login."""
+    from app.models.organisation import Organisation
+    from app.models.user import User
+
+    result = await db.execute(select(User).where(User.auth0_sub == token.sub))
+    user = result.scalar_one_or_none()
+    if user:
+        return user
+
+    # First login — provision org (if none exists) and user
+    org_result = await db.execute(select(Organisation).limit(1))
+    org = org_result.scalar_one_or_none()
+    if org is None:
+        org = Organisation(name="Prosota Consulting Ltd", plan_tier="starter")
+        db.add(org)
+        await db.flush()
+
+    email = token.email or f"user+{token.sub.split('|')[-1]}@prosotapmo.local"
+    user = User(
+        org_id=org.id,
+        email=email,
+        auth0_sub=token.sub,
+        display_name=email,
+        role="admin",
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
