@@ -16,6 +16,11 @@ class CostElement(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
     period_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("periods.id"), nullable=False)
+    # 'fixed' = direct budget figure; 'percentage' = rate applied to sum of fixed elements
+    element_type: Mapped[str] = mapped_column(String(20), nullable=False, default="fixed")
+    # For percentage elements: rate as decimal fraction (0.15 = 15%). NULL for fixed elements.
+    # Values are calculated at query time — never stored for percentage elements.
+    rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6))
     element_group: Mapped[str | None] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     budget: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
