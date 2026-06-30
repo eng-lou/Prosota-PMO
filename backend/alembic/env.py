@@ -13,7 +13,7 @@ from app.models import *  # noqa: E402, F401 — registers all models with Base.
 from app.models.base import Base  # noqa: E402
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.sync_database_url)
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

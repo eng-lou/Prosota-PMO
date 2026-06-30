@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -20,8 +20,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:password@db:5432/prosotapmo
-      SYNC_DATABASE_URL: postgresql+psycopg2://postgres:password@db:5432/prosotapmo
+      DATABASE_URL: postgresql+psycopg://postgres:password@db:5432/prosotapmo
       ENVIRONMENT: development
       SECRET_KEY: local-dev-secret-change-in-prod
     volumes:
