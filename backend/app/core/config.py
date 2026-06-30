@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:password@localhost:5432/prosotapmo"
     secret_key: str = "change-me-in-production"
     environment: str = "development"
+    auth0_domain: str = ""
+    auth0_audience: str = ""
 
 
 settings = Settings()

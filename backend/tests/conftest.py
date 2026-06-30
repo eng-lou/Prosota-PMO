@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 
 import pytest
@@ -8,19 +9,20 @@ import pytest
 # psycopg3 requires SelectorEventLoop; Windows defaults to ProactorEventLoop
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-import os
-
+from app.core.auth import TokenPayload, get_current_user
 from app.database import get_db
 from app.main import app
 from app.models.base import Base
 from app.models.organisation import Organisation
 from app.models.period import Period
 from app.models.project import Project
+from app.models.user import User
 
 _DEFAULT_URL = "postgresql+psycopg://postgres:password@localhost:5432/prosotapmo_test"
 _ASYNC_URL = os.environ.get("TEST_DATABASE_URL", _DEFAULT_URL)
@@ -28,6 +30,9 @@ _SYNC_URL = _ASYNC_URL
 
 _async_engine = create_async_engine(_ASYNC_URL)
 _Session = async_sessionmaker(_async_engine, expire_on_commit=False)
+
+_TEST_USER_SUB = "auth0|test-user"
+_TEST_USER_EMAIL = "test@prosota.com"
 
 
 # Sync fixture for schema setup — avoids pytest-asyncio event-loop scope issues
@@ -57,13 +62,24 @@ async def db() -> AsyncSession:
 
 @pytest_asyncio.fixture
 async def client(db: AsyncSession) -> AsyncClient:
-    async def _override():
+    async def _override_db():
         yield db
 
-    app.dependency_overrides[get_db] = _override
+    async def _override_auth() -> TokenPayload:
+        return TokenPayload(sub=_TEST_USER_SUB, email=_TEST_USER_EMAIL)
+
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[get_current_user] = _override_auth
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def raw_client() -> AsyncClient:
+    """Client with no auth override — used to test that unauthed requests get 401."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        yield c
 
 
 @pytest_asyncio.fixture
@@ -73,6 +89,21 @@ async def org(db: AsyncSession) -> Organisation:
     await db.commit()
     await db.refresh(o)
     return o
+
+
+@pytest_asyncio.fixture
+async def user(db: AsyncSession, org: Organisation) -> User:
+    u = User(
+        org_id=org.id,
+        email=_TEST_USER_EMAIL,
+        auth0_sub=_TEST_USER_SUB,
+        display_name="Test User",
+        role="member",
+    )
+    db.add(u)
+    await db.commit()
+    await db.refresh(u)
+    return u
 
 
 @pytest_asyncio.fixture
