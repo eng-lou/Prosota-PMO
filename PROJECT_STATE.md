@@ -42,7 +42,7 @@ In priority order:
 3. [ ] Stand up AWS infrastructure skeleton (ECS Fargate, RDS Aurora Postgres, S3, CloudFront) — see business case Section 6.2 for budget constraints (~£24k/yr infra at Phase 1 scale)
 4. [x] FastAPI project scaffold with the 5-table core schema (Section 4 below) and Alembic migrations
 5. [ ] Auth0 integration for SSO/MFA
-6. [ ] CI/CD pipeline (GitHub Actions): lint, test, deploy to staging on merge to `main`
+6. [x] CI/CD pipeline (GitHub Actions): lint, test, deploy to staging on merge to `main`
 
 Do NOT start frontend work until the core API for at least Activities + Risks exists and is tested — the linking graph (Section 4.3) needs both sides to exist before it's meaningful to build against.
 
@@ -142,6 +142,7 @@ prosota-pmo/
 |---|---|---|
 | 2026-06-30 | Prototype completed end-to-end across an extended chat session. Business case (v3) and Project Scope document finalised. This handoff doc created to bridge into Claude Code / production build. | Set up the actual repo, copy reference docs in, and start Sprint 1 infra work per Section 3. |
 | 2026-06-30 | Sprint 1 tasks 1, 2, 4 complete. Repo scaffolded, docs in place, FastAPI + all 9 SQLAlchemy models + Alembic initial migration done. API confirmed running locally at http://localhost:8000 with Postgres 16 (native Windows install). psycopg3 used as driver (asyncpg dropped — no Python 3.14 wheels). Docker Hub unreachable from dev machine — Docker Compose file exists but is not the active local dev path. | Next: decide between task 5 (Auth0) or task 6 (CI/CD), or move to first real API endpoints (Activities + Risks CRUD) to unblock frontend work. |
+| 2026-06-30 | Sprint 1 tasks 4 + 6 fully complete. Full CRUD + tests for Activities, Risks, Cost Elements, ICD Items, and record_links (bidirectional graph). Cost elements: fixed/percentage dual-type with live computed values. ICD items: single-table discriminator (issue/change/decision) with type-field validation. GitHub Actions CI live — PostgreSQL 16 service container, pytest on push/PR. All pushed to GitHub (eng-lou/Prosota-PMO). Tasks 3 (AWS) and 5 (Auth0) still deferred. | Next: Auth0 integration (task 5) or AWS infra skeleton (task 3). Backend API is complete enough to unblock both. Frontend remains blocked until Auth0 exists. |
 
 ---
 
