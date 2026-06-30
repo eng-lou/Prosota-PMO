@@ -37,10 +37,10 @@ Full prototype scope: see `docs/project-scope.docx` (not yet copied into repo �
 
 In priority order:
 
-1. [ ] Initialise this repo properly: `backend/`, `frontend/`, `docs/`, `infra/` folder structure (see Section 6)
-2. [ ] Copy `prosota-pmo.html`, the business case docx, and the project scope docx into `docs/prototype/` for reference
+1. [x] Initialise this repo properly: `backend/`, `frontend/`, `docs/`, `infra/` folder structure (see Section 6)
+2. [x] Copy `prosota-pmo.html`, the business case docx, and the project scope docx into `docs/prototype/` for reference
 3. [ ] Stand up AWS infrastructure skeleton (ECS Fargate, RDS Aurora Postgres, S3, CloudFront) — see business case Section 6.2 for budget constraints (~£24k/yr infra at Phase 1 scale)
-4. [ ] FastAPI project scaffold with the 5-table core schema (Section 4 below) and Alembic migrations
+4. [x] FastAPI project scaffold with the 5-table core schema (Section 4 below) and Alembic migrations
 5. [ ] Auth0 integration for SSO/MFA
 6. [ ] CI/CD pipeline (GitHub Actions): lint, test, deploy to staging on merge to `main`
 
@@ -141,6 +141,7 @@ prosota-pmo/
 | Date | What Happened | Next Session Should... |
 |---|---|---|
 | 2026-06-30 | Prototype completed end-to-end across an extended chat session. Business case (v3) and Project Scope document finalised. This handoff doc created to bridge into Claude Code / production build. | Set up the actual repo, copy reference docs in, and start Sprint 1 infra work per Section 3. |
+| 2026-06-30 | Sprint 1 tasks 1, 2, 4 complete. Repo scaffolded, docs in place, FastAPI + all 9 SQLAlchemy models + Alembic initial migration done. API confirmed running locally at http://localhost:8000 with Postgres 16 (native Windows install). psycopg3 used as driver (asyncpg dropped — no Python 3.14 wheels). Docker Hub unreachable from dev machine — Docker Compose file exists but is not the active local dev path. | Next: decide between task 5 (Auth0) or task 6 (CI/CD), or move to first real API endpoints (Activities + Risks CRUD) to unblock frontend work. |
 
 ---
 
