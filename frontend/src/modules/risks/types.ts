@@ -10,6 +10,10 @@ export interface Risk {
   area: string | null
   status: string
   risk_owner: string | null
+  date_raised: string | null
+  date_closed: string | null
+  expected_impact_date: string | null
+  last_reviewed_date: string | null
   cause: string | null
   effect: string | null
   rationale: string | null
@@ -51,6 +55,20 @@ export interface RiskMitigationAction {
 }
 
 export const ACTION_STATUSES = ['not_started', 'in_progress', 'complete', 'overdue'] as const
+
+export interface RiskReassessment {
+  id: string
+  risk_id: string
+  note: string
+  reviewed_at: string
+}
+
+// Fields that, if changed, should prompt for a reassessment note — per PMBOK7/
+// Rita Mulcahy's Monitor Risks concept of ongoing reassessment being distinct
+// from the one-off rating_narrative.
+export const REASSESSMENT_TRIGGER_FIELDS = [
+  'probability', 'impact', 'probability_residual', 'impact_residual', 'status',
+] as const
 
 export const RISK_STATUSES = ['open', 'mitigated', 'closed'] as const
 

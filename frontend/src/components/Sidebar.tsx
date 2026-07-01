@@ -24,7 +24,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex flex-col w-60 min-h-screen bg-gray-900 text-white shrink-0">
+    <aside className="no-print flex flex-col w-60 min-h-screen bg-gray-900 text-white shrink-0">
       <div className="px-6 py-5 border-b border-gray-700">
         <span className="text-lg font-bold tracking-tight">ProsotaPMO</span>
       </div>

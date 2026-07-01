@@ -27,6 +27,42 @@ async def test_create_risk(client: AsyncClient, project: Project, live_period: P
     assert "id" in data
 
 
+async def test_create_risk_with_key_dates(client: AsyncClient, project: Project, live_period: Period):
+    """date_raised (Date Identified), expected_impact_date, last_reviewed_date,
+    and date_closed — matches the prototype's General tab date fields."""
+    resp = await client.post("/api/v1/risks/", json={
+        "project_id": str(project.id),
+        "period_id": str(live_period.id),
+        "title": "Ground contamination risk",
+        "date_raised": "2026-05-02",
+        "expected_impact_date": "2026-08-15",
+        "last_reviewed_date": "2026-06-30",
+    })
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["date_raised"] == "2026-05-02"
+    assert data["expected_impact_date"] == "2026-08-15"
+    assert data["last_reviewed_date"] == "2026-06-30"
+    assert data["date_closed"] is None
+
+
+async def test_date_closed_set_on_update(client: AsyncClient, project: Project, live_period: Period):
+    create = await client.post("/api/v1/risks/", json={
+        "project_id": str(project.id),
+        "period_id": str(live_period.id),
+        "title": "Risk to be closed",
+    })
+    risk_id = create.json()["id"]
+
+    resp = await client.patch(f"/api/v1/risks/{risk_id}", json={
+        "status": "closed",
+        "date_closed": "2026-07-01",
+    })
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "closed"
+    assert resp.json()["date_closed"] == "2026-07-01"
+
+
 async def test_create_risk_with_statement_and_ownership_fields(
     client: AsyncClient, project: Project, live_period: Period
 ):

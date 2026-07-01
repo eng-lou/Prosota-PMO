@@ -159,3 +159,36 @@ Maro to click through the whole Risk Register — the new fields, threat/opportu
 ## Session 9 (continued): First real test found a real bug — a box too small for a real answer
 
 Maro tried actually creating a risk with realistic detail, and it failed. This is exactly the value of a human testing it for real: the box for "Mitigation status" had quietly been limited to only 50 characters ever since it was first built — far too small for an actual sentence describing what's being done about a risk — and nobody had noticed because nobody had typed a real, full answer into it until now. Widened it to allow a proper paragraph, like the similar boxes next to it (Contingency plan, Fallback plan), and changed it from a single skinny line to a proper multi-line text box to match. Added a test using Maro's exact wording so this specific mistake can't quietly come back.
+
+Maro then confirmed the whole Risk Module "works extremely well" — so everything from this long session (Cost Plan, ICD Tracker, the EMV fix, and the full Risk Register rebuild) was saved to git as one commit. Before doing that, though, the three big reference PDFs were deliberately kept out of git — they're large (about 108MB combined) and are commercial, copyrighted study materials, not something the project should be redistributing every time someone copies the repository. They're still on this computer for reference; just not tracked by version control.
+
+## Session 9 (continued further): A few more real-world fields the register still needed
+
+Maro then pointed out the Risk Register still wasn't quite finished — a few realistic, everyday fields were missing:
+
+1. **When was this risk first noticed?** ("Date raised") and, separately, **when was it closed** (if it has been)? These track the lifetime of a risk from identification to resolution, matching how the original prototype recorded a "Date Identified."
+2. **When would this risk actually happen, if it does?** Added as "Expected impact date" — a best guess at the date the problem would actually hit the project, separate from when it was first spotted. (This is a best interpretation of what was asked for — worth double-checking the wording is exactly right.)
+3. **When was this risk last properly looked at again?** ("Last reviewed") — so it's clear if a risk has been sitting untouched for months versus checked recently.
+4. **A running history of "what changed and why," each with its own date and time** — separate from the existing single explanation box. Previously there was only one "why is this rated this way" text box, which gets overwritten every time it's edited, losing the story of how the risk evolved. Now, whenever someone changes the probability, impact, or status of a risk, the app notices and gently prompts: "this changed — want to explain why?" If they do, it's saved as a permanently dated entry in a running list, building up a real history over time (e.g. "12 June: probability lowered after supplier confirmed backup plan"). There's also a manual "+ Log a review" button for cases where someone checked a risk and decided nothing needs to change, so that gets recorded too. Every time something is logged this way, the "Last reviewed" date above updates automatically.
+
+End of session 9: 105 automated tests now pass (up from 71 at the very start of the session). As always, this newest addition hasn't been saved to git yet — waiting for Maro to check it in the real app first, and in particular to confirm the "Expected impact date" naming actually captures what was meant.
+
+---
+
+## Session 9 (continued, further still): Making the review log fixable, and bringing back the everyday toolbar tools
+
+Maro called this "brilliant work" and asked for two more things: the ability to fix or remove a review-log entry (previously it could only ever be added, never corrected — a reasonable safety feature for some tools, but not what was wanted here), and a set of practical, everyday tools the original demo had that hadn't been rebuilt yet: a search box, a filters button, a way to group risks together, the ability to export the list, and a proper print/preview.
+
+Before building, two quick judgment calls were checked first rather than guessed at:
+- One of the demo's buttons, labelled "C-3," had genuinely no function behind it anywhere in the original demo's code — not a hidden feature, just leftover visual decoration. Confirmed it was safe to skip rather than invent a meaning for it.
+- "Import" (pulling in a real Excel or XML file) is a much bigger job than the rest — it needs real file-reading and a way to match up columns, not just a button. Rather than repeat the exact mistake this whole session has been about (building something that looks like it works but doesn't), Import was deliberately left for its own separate piece of work later. Everything else (search, filters, grouping, export, print) was built for real this time.
+
+What was added:
+1. **The review log can now be edited or deleted**, not just added to.
+2. **A real search box** — type a risk's name, code, category, area, or owner and the list narrows instantly.
+3. **A filters panel** — tick which statuses, which risk types (threat/opportunity), which theme, or which area you want to see, and the list narrows to match; a live counter shows how many filters are active.
+4. **Grouping** — view the register bundled by Theme, Area, Status, or Risk Type instead of one long flat list, with a count next to each group.
+5. **A genuine working Export button** — downloads the risks currently on screen (respecting whatever search/filters are active) as a real spreadsheet file that opens directly in Excel. Deliberately not a fake "Export to .xlsx" button that does nothing — this one actually works, today, with no extra software needed.
+6. **Real Print/Preview**, using the same print function already built into every web browser rather than faking a preview screen: tick the risks you want (or none, to mean "everything currently shown"), then choose "Print as shown" for a clean printed version of the table, or "Print selected, full detail" for a proper one-page-per-risk report covering the full risk statement, both heat-map assessments, the 3-point cost/schedule estimate, and the response plan. (The mitigation action checklist and review-log history aren't included in the printed detail yet — flagged honestly as a scope limit rather than silently left out.)
+
+End of session 9 (this stretch): 108 automated tests passing. As always, nothing from this batch has been saved to git yet — waiting for Maro to try all of it out for real first.

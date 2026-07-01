@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -33,6 +33,14 @@ class RiskBase(BaseModel):
     area: str | None = None
     status: str = "open"
     risk_owner: str | None = None
+    # date_raised matches the prototype's "Date Identified"; last_reviewed_date matches
+    # its "Last Reviewed" (also auto-bumped whenever a reassessment is logged — see
+    # RiskReassessment). expected_impact_date is Ch.12's risk factor "expected timing
+    # for it to occur in the project life cycle" — when the risk would materialise.
+    date_raised: date | None = None
+    date_closed: date | None = None
+    expected_impact_date: date | None = None
+    last_reviewed_date: date | None = None
     # Risk-statement structure: Cause -> title (short description) -> Effect -> Rationale.
     cause: str | None = None
     effect: str | None = None
@@ -83,6 +91,10 @@ class RiskUpdate(BaseModel):
     area: str | None = None
     status: str | None = None
     risk_owner: str | None = None
+    date_raised: date | None = None
+    date_closed: date | None = None
+    expected_impact_date: date | None = None
+    last_reviewed_date: date | None = None
     cause: str | None = None
     effect: str | None = None
     rationale: str | None = None

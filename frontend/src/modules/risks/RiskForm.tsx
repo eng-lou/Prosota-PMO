@@ -1,5 +1,11 @@
 import { useState } from 'react'
-import { RESPONSE_STRATEGIES_BY_TYPE, RISK_STATUSES, type Risk, type RiskType } from './types'
+import {
+  REASSESSMENT_TRIGGER_FIELDS,
+  RESPONSE_STRATEGIES_BY_TYPE,
+  RISK_STATUSES,
+  type Risk,
+  type RiskType,
+} from './types'
 
 export interface RiskFormValues {
   title: string
@@ -7,6 +13,10 @@ export interface RiskFormValues {
   area: string
   status: string
   risk_owner: string
+  date_raised: string
+  date_closed: string
+  expected_impact_date: string
+  last_reviewed_date: string
   cause: string
   effect: string
   rationale: string
@@ -35,6 +45,10 @@ function toFormValues(risk: Risk | null): RiskFormValues {
     area: risk?.area ?? '',
     status: risk?.status ?? 'open',
     risk_owner: risk?.risk_owner ?? '',
+    date_raised: risk?.date_raised ?? '',
+    date_closed: risk?.date_closed ?? '',
+    expected_impact_date: risk?.expected_impact_date ?? '',
+    last_reviewed_date: risk?.last_reviewed_date ?? '',
     cause: risk?.cause ?? '',
     effect: risk?.effect ?? '',
     rationale: risk?.rationale ?? '',
@@ -69,6 +83,10 @@ export function toRiskPayload(values: RiskFormValues) {
     area: values.area.trim() || null,
     status: values.status,
     risk_owner: values.risk_owner.trim() || null,
+    date_raised: values.date_raised || null,
+    date_closed: values.date_closed || null,
+    expected_impact_date: values.expected_impact_date || null,
+    last_reviewed_date: values.last_reviewed_date || null,
     cause: values.cause.trim() || null,
     effect: values.effect.trim() || null,
     rationale: values.rationale.trim() || null,
@@ -94,7 +112,9 @@ export function toRiskPayload(values: RiskFormValues) {
 interface RiskFormProps {
   risk: Risk | null
   onCancel: () => void
-  onSubmit: (values: RiskFormValues) => Promise<void>
+  // reassessmentNote is non-null only when a trigger field (probability/impact/
+  // status/etc.) changed and the user filled in the "what changed and why" prompt.
+  onSubmit: (values: RiskFormValues, reassessmentNote: string | null) => Promise<void>
 }
 
 const inputClass =
@@ -106,9 +126,14 @@ export function RiskForm({ risk, onCancel, onSubmit }: RiskFormProps) {
   const [values, setValues] = useState<RiskFormValues>(() => toFormValues(risk))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reassessmentNote, setReassessmentNote] = useState('')
 
   const set = <K extends keyof RiskFormValues>(key: K, value: RiskFormValues[K]) =>
     setValues(prev => ({ ...prev, [key]: value }))
+
+  const hasTriggerChanges = risk !== null && REASSESSMENT_TRIGGER_FIELDS.some(
+    field => (risk[field] ?? '') !== values[field]
+  )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -119,7 +144,7 @@ export function RiskForm({ risk, onCancel, onSubmit }: RiskFormProps) {
     setSubmitting(true)
     setError(null)
     try {
-      await onSubmit(values)
+      await onSubmit(values, hasTriggerChanges && reassessmentNote.trim() ? reassessmentNote.trim() : null)
     } catch {
       setError('Failed to save risk')
     } finally {
@@ -214,6 +239,51 @@ export function RiskForm({ risk, onCancel, onSubmit }: RiskFormProps) {
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
+        </div>
+      </div>
+
+      <div className={sectionClass}>Key dates</div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>Date raised</label>
+          <input
+            type="date"
+            value={values.date_raised}
+            onChange={e => set('date_raised', e.target.value)}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Expected impact date</label>
+          <input
+            type="date"
+            value={values.expected_impact_date}
+            onChange={e => set('expected_impact_date', e.target.value)}
+            className={inputClass}
+          />
+          <p className="text-xs text-gray-400 mt-1">When the risk is expected to occur/materialise, if it does.</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>Last reviewed</label>
+          <input
+            type="date"
+            value={values.last_reviewed_date}
+            onChange={e => set('last_reviewed_date', e.target.value)}
+            className={inputClass}
+          />
+          <p className="text-xs text-gray-400 mt-1">Auto-updated whenever a reassessment is logged below; editable here too.</p>
+        </div>
+        <div>
+          <label className={labelClass}>Date closed</label>
+          <input
+            type="date"
+            value={values.date_closed}
+            onChange={e => set('date_closed', e.target.value)}
+            className={inputClass}
+          />
         </div>
       </div>
 
@@ -421,6 +491,21 @@ export function RiskForm({ risk, onCancel, onSubmit }: RiskFormProps) {
           placeholder="What will we do if the contingency plan doesn't work?"
         />
       </div>
+
+      {hasTriggerChanges && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+          <label className={labelClass}>
+            Probability, impact, or status changed — what changed and why? (optional, logged with today's date)
+          </label>
+          <textarea
+            value={reassessmentNote}
+            onChange={e => setReassessmentNote(e.target.value)}
+            className={inputClass}
+            rows={2}
+            placeholder="e.g. Probability reduced from 0.65 to 0.30 following supplier confirmation of dual-sourcing."
+          />
+        </div>
+      )}
 
       <div className="flex gap-2 pt-1">
         <button
