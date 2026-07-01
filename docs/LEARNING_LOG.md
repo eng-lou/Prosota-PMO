@@ -192,3 +192,28 @@ What was added:
 6. **Real Print/Preview**, using the same print function already built into every web browser rather than faking a preview screen: tick the risks you want (or none, to mean "everything currently shown"), then choose "Print as shown" for a clean printed version of the table, or "Print selected, full detail" for a proper one-page-per-risk report covering the full risk statement, both heat-map assessments, the 3-point cost/schedule estimate, and the response plan. (The mitigation action checklist and review-log history aren't included in the printed detail yet — flagged honestly as a scope limit rather than silently left out.)
 
 End of session 9 (this stretch): 108 automated tests passing. As always, nothing from this batch has been saved to git yet — waiting for Maro to try all of it out for real first.
+
+---
+
+## Session 10 — 2026-07-01: Bringing the ICD Tracker (Issues/Changes/Decisions) up to the same standard as the Risk Register
+
+With the Risk Register confirmed working and committed, Maro asked for the same rigorous process to be repeated for the ICD Tracker: read the original prototype design and the scope document, read the relevant chapter of the PM reference book, write up a gap-analysis plan document first, and only then start building — phase by phase, testing after every step. `docs/ICD_MODULE_PLAN.md` was created following that process (covering Rita Mulcahy's Issue Log structure and the "Integrated Change Control" chapter), and Maro approved the full 7-phase plan plus a decision to reuse the Risk Register's "reassessment log" pattern for tracking history, rather than building an automatic change-tracking system.
+
+What got built, across all 7 phases:
+
+1. **Filled in the missing basic fields** every issue/change/decision should have had from day one: a description, who raised it (as distinct from who's fixing it), a due date, and a resolution note.
+2. **Real Change Control fields for the "Change" type** — what kind of change it is (Variation / Client Instruction / Omission), whether the change-control board approved, rejected, or deferred it (kept separate from the everyday status field), the reason if it was rejected, the actual contract clause it relates to, the cost/time being claimed, and a quality-impact rating.
+3. **A "what happens if this decision is late" field** for the Decision type — capturing the real consequence of missing the deadline, not just the deadline itself.
+4. **Action items** — a repeatable checklist against any issue/change/decision (its own short code like ACT-01, an owner, a due date, a status, and a percent-complete slider), reusing the exact same pattern already built for Risk's mitigation actions.
+5. **Real comments** — a genuine discussion thread on each item, showing the actual signed-in person's name (not a placeholder), where only the original author can edit or delete their own comment (checked on the server too, not just hidden in the screen).
+6. **The everyday toolbar tools** — search, a filters panel (status/priority/owner), grouping, a working spreadsheet export, and print/preview (either "print everything currently shown" or "print full detail for just the ones I've ticked") — the same toolkit built for Risk, now generalised for this module too.
+7. **A "last reviewed" date plus an editable/deletable review-log history** — exactly like Risk's, auto-prompting for a note whenever status, priority, severity, the change-control decision, cost, or quality impact changes, and auto-updating "last reviewed" whenever a note is logged.
+8. **A KPI summary strip** at the top of the tracker — open/overdue issue counts, pending/approved change counts plus their combined cost and schedule impact, and pending/completed decision counts — calculated live from whatever's already loaded on screen, no extra requests needed.
+
+Along the way, three real bugs Maro caught while testing were fixed:
+- **Two "Open" options appeared in the status dropdown** for issues. Cause: the dropdown's options were written in Title Case ("Open") but the actual saved value was lowercase ("open") — a mismatch that made the screen inject a second, duplicate-looking entry. Fixed by making every status value consistent lowercase everywhere, with a separate lookup table just for how it's displayed.
+- **Priority was a free-text box** instead of a fixed dropdown (Critical/High/Medium/Low) like the rest of the app — fixed.
+- **"Due date" and "Required by" meant the same thing for a Decision**, which was confusing — the generic due-date box is now hidden for decisions, and "Required by" (with its own more specific "what happens if we miss it" field) is used instead.
+- **The KPI numbers didn't move after changing a Change's status from Pending to Approved.** Root cause: the KPI counts were only checking a separate, less-visible "CCB decision" field, not the main "Status" dropdown Maro actually used — so editing Status alone left the KPI looking at stale data. Fixed so the KPI recognises either field.
+
+End of session 10: 147 automated tests passing (up from 108 at the start of this stretch). Maro clicked through everything in the real app, including the KPI fix, and confirmed it all works — this is the point where it gets saved to git.

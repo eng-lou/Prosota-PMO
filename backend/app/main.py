@@ -3,7 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.activities import router as activities_router
 from app.api.cost_elements import router as cost_elements_router
+from app.api.icd_action_items import router as icd_action_items_router
+from app.api.icd_comments import router as icd_comments_router
+from app.api.icd_criteria import router as icd_criteria_router
 from app.api.icd_items import router as icd_items_router
+from app.api.icd_reassessments import router as icd_reassessments_router
 from app.api.periods import router as periods_router
 from app.api.projects import router as projects_router
 from app.api.record_links import router as record_links_router
@@ -37,6 +41,10 @@ app.include_router(risk_criteria_router, prefix="/api/v1", dependencies=_auth)
 app.include_router(record_links_router, prefix="/api/v1", dependencies=_auth)
 app.include_router(cost_elements_router, prefix="/api/v1", dependencies=_auth)
 app.include_router(icd_items_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(icd_criteria_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(icd_reassessments_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(icd_action_items_router, prefix="/api/v1", dependencies=_auth)
+app.include_router(icd_comments_router, prefix="/api/v1", dependencies=_auth)
 
 
 @app.get("/health")
