@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.cost_element import CostElement
 from app.models.period import Period
 from app.schemas.cost_element import CostElementCreate, CostElementResponse, CostElementUpdate
+from app.services.reference_codes import next_code
 
 
 async def _require_live_period(db: AsyncSession, period_id: uuid.UUID) -> None:
@@ -88,7 +89,8 @@ async def get_cost_element(db: AsyncSession, element_id: uuid.UUID) -> CostEleme
 
 async def create_cost_element(db: AsyncSession, data: CostElementCreate) -> CostElementResponse:
     await _require_live_period(db, data.period_id)
-    el = CostElement(**data.model_dump())
+    code = await next_code(db, CostElement, "CST", data.project_id)
+    el = CostElement(**data.model_dump(), code=code)
     db.add(el)
     await db.commit()
     await db.refresh(el)

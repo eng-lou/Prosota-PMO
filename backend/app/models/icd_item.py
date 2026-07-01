@@ -21,6 +21,10 @@ class IcdItem(Base, TimestampMixin):
     item_type: Mapped[str] = mapped_column(String(20), nullable=False)
 
     # Shared fields
+    # Human-readable reference (e.g. "ISS-0001"/"CHA-0001"/"DEC-0001"), auto-generated per
+    # project per sub-type. Never reused.
+    code: Mapped[str] = mapped_column(String(20), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="open")
     priority: Mapped[str | None] = mapped_column(String(20))
     owner: Mapped[str | None] = mapped_column(String(255))

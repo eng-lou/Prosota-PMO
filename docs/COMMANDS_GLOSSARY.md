@@ -63,6 +63,12 @@ Commands are grouped by tool. Within each group, the most commonly used ones are
 | `Get-NetTCPConnection -LocalPort 8000 -State Listen` | Finds which running process currently has port 8000 (the backend's address) open and listening. Useful when a server needs restarting but you don't know its process ID. |
 | `Stop-Process -Id <id> -Force` | Forcibly shuts down a specific running program by its process ID — used here to kill an old backend server process before starting a fixed version in its place. |
 
+## pdftotext (pulling plain text out of a PDF file)
+
+| Command | What it does |
+|---|---|
+| `pdftotext -layout <file.pdf> <output.txt>` | Converts a PDF into a plain text file, trying to preserve the original page layout/columns. Used to properly read the PMBOK/PMP reference books directly (page-by-page image rendering wasn't available on this machine, so this was the practical way to search and read the actual chapter text). |
+
 ## Docker (not currently in active use on this machine)
 
 | Command | What it does |

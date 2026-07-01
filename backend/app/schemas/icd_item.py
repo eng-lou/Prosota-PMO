@@ -13,6 +13,7 @@ Severity = Literal["low", "medium", "high", "critical"]
 
 class IcdItemBase(BaseModel):
     item_type: ItemType
+    title: str
     status: str = "open"
     priority: str | None = None
     owner: str | None = None
@@ -48,6 +49,7 @@ class IcdItemCreate(IcdItemBase):
 
 
 class IcdItemUpdate(BaseModel):
+    title: str | None = None
     status: str | None = None
     priority: str | None = None
     owner: str | None = None
@@ -64,6 +66,7 @@ class IcdItemResponse(IcdItemBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    code: str
     project_id: uuid.UUID
     period_id: uuid.UUID
     created_at: datetime

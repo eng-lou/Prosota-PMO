@@ -77,6 +77,85 @@ End of session 5: Risk Register works end-to-end, confirmed by an actual human c
 
 ---
 
+## Session 6 — 2026-07-01 (continued): Deciding how to pace the rest of the build, then Cost Plan and ICD Tracker
+
+Maro made a call on strategy: rather than polishing the Risk Register screen to match the full prototype's look and detail (heat matrix, summary charts, etc.) before moving on, build every remaining screen to the same basic "it works" level first, and come back to polish all of them together later. The reasoning: every screen depends on the others through the linking feature, so perfecting one in isolation doesn't actually get the product closer to finished — having all the pieces roughly in place does.
+
+1. **Built the Cost Plan screen.** Same pattern as Risk Register: a table of cost items, add/edit/delete. Cost items come in two flavours — a "fixed" cost (a direct number, like "Substructure: £500,000") or a "percentage" cost (like "Prelims: 15%", which automatically works itself out as 15% of all the fixed costs added together, and updates itself if those change).
+2. **Built the ICD Tracker screen.** This tracks three related but different things in one place: Issues, Changes, and Decisions — with filter buttons to switch between viewing all of them or just one kind. Each type has its own extra details (an Issue has a severity, a Change has a cost/schedule impact, a Decision has a decision-maker and a due date).
+3. **Found a real gap while building this — not a bug, a missing feature.** The Issues/Changes/Decisions data storage had no "title" at all — meaning every single item would have shown up as just "Change · Open · 12 May" with no way to tell what it actually was, useless in practice. This wasn't something breaking, just something nobody had noticed was missing yet. Checked with Maro before fixing it, since it meant changing an already-built, already-tested part of the backend, not just adding something new — Maro chose to fix it properly now rather than defer it. Added it as a proper database change (called a "migration" — a recorded, repeatable instruction for how to update the database structure).
+4. **Made the "linking" feature actually cross-module for the first time.** Until now, a risk could only link to another risk, because Cost Plan didn't exist yet to link to. Now that it does, a risk can link to a cost element, a cost element can link to an issue, and so on — genuinely proving out the product's core differentiator (the ability to trace "this risk caused this cost overrun which triggered this change") rather than just a same-type demo.
+5. **Checked everything that could be checked without a human.** Re-ran the full automated backend test suite (still all 71 passing, after updating them for the new "title" requirement), re-ran the type-checker (same result as before — no new problems introduced), and confirmed the running servers picked up all the changes cleanly.
+
+End of session 6: Cost Plan and ICD Tracker are built and technically verified, but — same as before — not yet clicked through by a human, since that still requires a real login only Maro can do.
+
+---
+
 ## What's next (in plain terms)
 
-Next up is the Cost Plan screen, following the same approach: build it, verify what can be verified automatically, then have Maro click through it for real before committing.
+Maro to click through Cost Plan (try both a fixed and a percentage cost item) and ICD Tracker (try an issue, a change, and a decision, and link a couple of items together across screens) to confirm it all works before it gets saved to git. After that: Scheduling and the Controls Dashboard, built the same "basic first" way, then one combined polish pass across every screen at the end.
+
+---
+
+## Session 7 — 2026-07-01 (continued): Real user testing found three more things worth fixing
+
+Maro tried out Cost Plan and ICD Tracker and came back with sharp, specific feedback — proof that a real person clicking through catches things automated checks simply can't.
+
+1. **ICD Tracker's "Create" button was actually broken.** The cause was subtle: the running backend program had reloaded itself after an earlier code change, and said "Reloading..." in its own log — but it turned out it never actually picked up the new version properly, and kept running old code that didn't know about the new "title" field added a bit earlier in the session. The fix was to not trust that self-reload message and instead fully stop and restart the program from scratch, then double-check the fix landed before asking for a re-test.
+2. **CPI and SPI (two standard project-cost health metrics) were shown as boxes you could just type a number into.** Maro correctly pointed out these aren't things a person should be typing in by hand — they're meant to be worked out automatically from other numbers already in the system (like how well actual spend compares to the budget). Since the app doesn't yet have all the information needed to calculate these properly (in particular, the "how far along is the schedule" data, which lives in the not-yet-built Scheduling screen), the honest fix for now was to remove the manual boxes entirely rather than let someone type in a number that looks official but isn't actually calculated. They'll show as blank until real calculation logic exists.
+3. **The Issue/Change/Decision status field was a plain text box instead of a dropdown**, meaning someone could type "opne" by mistake or use inconsistent wording. Fixed by giving each of the three types its own proper dropdown list of sensible statuses (matching the wording used in the original prototype).
+4. **Added proper reference codes**, e.g. "RSK-0001" for a risk, "CST-0001" for a cost item, "ISS-0001"/"CHA-0001"/"DEC-0001" for issues/changes/decisions — the sort of short code a team would actually say out loud in a meeting ("have we closed off CHA-0001 yet?"), instead of a long title or an invisible internal ID. Numbers count up per project and are never reused, even if something gets deleted later, and are padded to 4 digits (0001, 0002...) so they stay tidy even with a large number of entries over the life of a project. This touched the database directly (a proper migration, the recorded/repeatable kind of database change), and the two records already created earlier in testing were automatically given codes retroactively so nothing was lost.
+
+End of session 7: three real, specific pieces of feedback addressed, all technically verified again (full automated test suite, type-checking, a full clean restart of the backend rather than trusting its self-reload). Still waiting on Maro to click through and confirm all four fixes for real before anything gets saved to git.
+
+---
+
+## Session 8 — 2026-07-01 (continued): Learning to get the project-management maths right
+
+After confirming the previous round of fixes worked, Maro made a bigger-picture point: as a real project-management expert, he'd noticed a pattern — the CPI/SPI mistake earlier, and now the same kind of mistake in something called "EMV" (Expected Monetary Value, a standard way of estimating how much a risk is really "worth" in money or time). He'd added three official reference books to the project (a PMBOK guide and two PMP exam-prep books) and asked that they be properly consulted going forward, instead of guessing at how these calculations should work.
+
+1. **Looked up the correct formula properly**, using the actual reference books rather than assuming. First had a research pass done across all three books to find the exact formula and definitions. Then, at Maro's specific request to "take your time and learn," went further and read the entire risk management chapter of one of the books directly, start to finish, rather than just taking a summary at face value.
+2. **Found the exact mistake.** The correct formula is: EMV = Probability x Impact, where "Impact" must be a real amount of money or time (e.g. "a 65% chance of a £40,000 problem" = an EMV of £26,000) — never a normalised, unitless "severity score." The app had been letting someone directly type in the final EMV figure as if it were just another piece of information to enter, rather than something the software works out on its own from the real inputs. This is the exact same category of mistake as the earlier CPI/SPI issue: a calculated result was being treated as raw data entry.
+3. **Fixed it properly.** Added two new proper input fields — "cost impact if this risk occurs" and "schedule impact if this risk occurs," in real pounds and real days — and made the app calculate the actual EMV automatically from those, the same way a spreadsheet formula would, rather than trusting a manually typed number. Also fixed the closely related "risk rating" (used for the classic risk heat-map/matrix) the same way, since it had the identical problem.
+4. **Corrected the existing demo data**, since a couple of test risks created earlier had clearly wrong numbers sitting in them from before the fix (one had an EMV of £5,000,000, which was just a number typed in during testing) — recalculated them properly rather than leaving obviously wrong figures on screen.
+5. **Added automated tests that check the exact textbook example** (65% chance of a £40,000 problem = £26,000) so this specific calculation can never quietly break again without a test failing.
+6. **Learned more than just the one formula.** While reading the chapter properly, also picked up that a full risk register really should distinguish between "threats" (bad risks) and "opportunities" (good risks that could save time or money), and that when adding up all the risk values to work out a project's overall contingency (safety-margin) budget, opportunities should be subtracted from threats, not just added together. The app doesn't do this yet — noted as a future improvement for when a project dashboard/summary screen gets built, rather than something to bolt on right now.
+
+End of session 8: the EMV/rating calculation is now done properly, checked against the actual reference material rather than assumed, with automated tests locking in the real textbook example. As with previous sessions, waiting on Maro to confirm it looks right in the real app before anything is committed.
+
+---
+
+## What's next (in plain terms)
+
+Maro to retest Risk Register with the new fields (probability + impact for the heat-map rating; cost/schedule impact for EMV) and confirm the numbers work out as expected. Once confirmed, everything from today's session gets committed together. Going forward, any future project-management calculation (like this one) should be checked against the reference books in `docs/` before being built, not guessed at.
+
+---
+
+## Session 9 — 2026-07-01 (continued): Bringing the whole Risk Register up to a proper standard
+
+Maro then made a bigger request: the EMV fix on its own wasn't enough. He wanted everything the original demo/prototype had already envisioned for the Risk Register — plus everything the proper project-management textbook chapter covers (threats vs opportunities, watch lists, mitigation tracking, and so on) — pulled together into one clear plan, before doing anything else. So a planning document (`docs/RISK_MODULE_PLAN.md`) was written first, comparing three things side by side: what the original demo already showed, what the textbook chapter says is best practice, and what actually exists in the real app today. Maro then said "go ahead," and all six pieces of that plan were built in one go:
+
+1. **Made the risk description more structured.** Instead of just one title, a risk can now record its Cause (what could trigger it), Effect (what happens if it does), and Rationale (why we think this is a risk), plus who owns/watches it and a second category dimension ("Theme" and "Area") — matching how the original demo laid things out.
+2. **Split every risk into "Threat" or "Opportunity."** Not every risk is bad — some are genuinely good things that might happen (like a supplier discount). This turned out to matter more than expected: the textbook's own examples show that a good/threatening risk affects money and schedule in opposite ways from each other (a threat costs money but adds days to the schedule; an opportunity saves money but also saves days) — a subtle detail that was checked carefully against the book rather than assumed, and locked in with tests proving both directions work correctly.
+3. **Added "before and after mitigation" risk ratings, with a real visual heat-map.** Previously there was only one risk rating. Now there's the "as things stand today" rating and a separate "what we're aiming for once our mitigation plan works" target rating, shown side by side on an actual colour-coded 5×5 grid (green/yellow/red), the same style of chart shown in the original demo — not just numbers in a table.
+4. **Added a proper checklist of mitigation actions per risk.** Rather than one vague "mitigation status" note, each risk can now have its own numbered to-do list of specific actions (e.g. "MA-01: Dual-source supplier"), each with its own owner, due date, status, and progress bar — plus separate "if this happens, do X" and "if X doesn't work, do Y" fallback plans.
+5. **Added an editable rulebook for what "High probability" or "Critical impact" actually mean.** Different people might disagree about what counts as a "Medium" risk unless it's written down somewhere shared. Added an editable table (collapsible section at the top of the Risk Register) defining exactly what each probability and impact level means in real terms (e.g. "Medium probability = 25-50% chance," "Critical impact = over £1,000,000 or over 8 weeks"), pre-filled with sensible defaults from the original demo, editable per project.
+6. **Made the "how much could this cost" estimate more realistic.** Instead of a single guessed number, risks can now record a Minimum, Most Likely, and Maximum estimate for both cost and schedule impact — like asking "best case, most likely case, worst case?" instead of just one figure. The actual EMV calculation still uses only the "Most Likely" figure, deliberately — the textbook's own worked examples never blend all three into one weighted formula, so rather than invent a fancier calculation that couldn't be checked against the source material, the simpler, verifiable approach was kept.
+
+Along the way, a genuinely large amount of new automated testing was added (26 new tests across three new test files, on top of extending the existing risk tests) — the backend test count went from 71 at the very start of today's session to 97 by the end, and every single one still passes.
+
+**Deliberately left for later, not because they were missed but because they belong elsewhere:** working out a project's overall risk "safety margin" budget by adding up every threat and subtracting every opportunity (that's a whole-project summary, which needs a dashboard screen that doesn't exist yet), and a formal "watch list" for minor risks that don't need full tracking yet.
+
+End of session 9: the Risk Register now reflects both the original product vision and genuine textbook-verified project-management practice, not just a working demo. As always, nothing has been saved to git yet — waiting on Maro to click through the real app and confirm it all works as expected first.
+
+---
+
+## What's next (in plain terms)
+
+Maro to click through the whole Risk Register — the new fields, threat/opportunity selection, the before/after heat-map, adding a mitigation action, editing the criteria table, and entering a 3-point cost estimate — to confirm it all behaves as expected. Once confirmed, everything from today (Cost Plan, ICD Tracker, the EMV fix, and this whole Risk Module upgrade) gets committed together, and then it's on to bringing Cost Plan and ICD Tracker up to the same standard, followed by Scheduling and the Controls Dashboard.
+
+---
+
+## Session 9 (continued): First real test found a real bug — a box too small for a real answer
+
+Maro tried actually creating a risk with realistic detail, and it failed. This is exactly the value of a human testing it for real: the box for "Mitigation status" had quietly been limited to only 50 characters ever since it was first built — far too small for an actual sentence describing what's being done about a risk — and nobody had noticed because nobody had typed a real, full answer into it until now. Widened it to allow a proper paragraph, like the similar boxes next to it (Contingency plan, Fallback plan), and changed it from a single skinny line to a proper multi-line text box to match. Added a test using Maro's exact wording so this specific mistake can't quietly come back.

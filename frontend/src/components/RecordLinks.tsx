@@ -1,16 +1,25 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
-import { LINK_TYPES, type RecordLink, type Risk } from './types'
+import { LINK_TYPES, type RecordLink, type RecordType } from '@/lib/types'
 
-interface RiskLinksProps {
-  risk: Risk
-  allRisks: Risk[]
+export interface LinkCandidate {
+  id: string
+  type: RecordType
+  label: string
+}
+
+interface RecordLinksProps {
+  recordType: RecordType
+  recordId: string
+  candidates: LinkCandidate[]
 }
 
 // Shows and manages entries in the shared `record_links` graph (see ARCHITECTURE.md
-// Section 4.3) for this risk. Only risk-to-risk links are offered here for now,
-// since Activities/Cost Elements/ICD items don't have frontend screens yet to pick from.
-export function RiskLinks({ risk, allRisks }: RiskLinksProps) {
+// Section 4.3), so any record (risk, cost element, ...) can be linked to any other,
+// typed as causes/impacts/mitigates/relates_to. `candidates` is the pool of other
+// records this record could link to — passed in by the caller since only modules
+// with a frontend list built so far can be picked from.
+export function RecordLinks({ recordType, recordId, candidates }: RecordLinksProps) {
   const [links, setLinks] = useState<RecordLink[]>([])
   const [loading, setLoading] = useState(true)
   const [targetId, setTargetId] = useState('')
@@ -20,26 +29,25 @@ export function RiskLinks({ risk, allRisks }: RiskLinksProps) {
   const load = () => {
     setLoading(true)
     api.get<RecordLink[]>('/api/v1/record-links/', {
-      params: { record_type: 'risk', record_id: risk.id },
+      params: { record_type: recordType, record_id: recordId },
     })
       .then(r => setLinks(r.data))
       .catch(() => setError('Failed to load links'))
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [risk.id])
-
-  const otherRisks = allRisks.filter(r => r.id !== risk.id)
+  useEffect(load, [recordType, recordId])
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!targetId) return
+    const target = candidates.find(c => c.id === targetId)
+    if (!target) return
     try {
       await api.post('/api/v1/record-links/', {
-        source_type: 'risk',
-        source_id: risk.id,
-        target_type: 'risk',
-        target_id: targetId,
+        source_type: recordType,
+        source_id: recordId,
+        target_type: target.type,
+        target_id: target.id,
         link_type: linkType,
       })
       setTargetId('')
@@ -54,7 +62,8 @@ export function RiskLinks({ risk, allRisks }: RiskLinksProps) {
     load()
   }
 
-  const titleFor = (id: string) => allRisks.find(r => r.id === id)?.title ?? id
+  const labelFor = (type: string, id: string) =>
+    candidates.find(c => c.type === type && c.id === id)?.label ?? `${type} (${id.slice(0, 8)})`
 
   if (loading) return <p className="text-xs text-gray-400 px-4 py-3">Loading links…</p>
 
@@ -67,14 +76,15 @@ export function RiskLinks({ risk, allRisks }: RiskLinksProps) {
       ) : (
         <ul className="text-xs text-gray-700 space-y-1 mb-3">
           {links.map(link => {
-            const isSource = link.source_id === risk.id
+            const isSource = link.source_id === recordId
+            const otherType = isSource ? link.target_type : link.source_type
             const otherId = isSource ? link.target_id : link.source_id
             return (
               <li key={link.id} className="flex items-center justify-between">
                 <span>
-                  {isSource ? 'This risk' : titleFor(otherId)}{' '}
+                  {isSource ? 'This' : labelFor(otherType, otherId)}{' '}
                   <span className="font-medium">{link.link_type}</span>{' '}
-                  {isSource ? titleFor(otherId) : 'this risk'}
+                  {isSource ? labelFor(otherType, otherId) : 'this'}
                 </span>
                 <button onClick={() => handleDelete(link.id)} className="text-gray-400 hover:text-red-600">
                   remove
@@ -98,8 +108,10 @@ export function RiskLinks({ risk, allRisks }: RiskLinksProps) {
           onChange={e => setTargetId(e.target.value)}
           className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-xs"
         >
-          <option value="">Link to another risk…</option>
-          {otherRisks.map(r => <option key={r.id} value={r.id}>{r.title}</option>)}
+          <option value="">Link to another record…</option>
+          {candidates.map(c => (
+            <option key={`${c.type}:${c.id}`} value={c.id}>{c.type}: {c.label}</option>
+          ))}
         </select>
         <button
           type="submit"

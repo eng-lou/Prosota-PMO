@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.icd_item import IcdItem
 from app.models.period import Period
 from app.schemas.icd_item import IcdItemCreate, IcdItemUpdate
+from app.services.reference_codes import next_code
+
+_CODE_PREFIXES = {"issue": "ISS", "change": "CHA", "decision": "DEC"}
 
 
 async def _require_live_period(db: AsyncSession, period_id: uuid.UUID) -> None:
@@ -45,7 +48,11 @@ async def get_icd_item(db: AsyncSession, item_id: uuid.UUID) -> IcdItem:
 
 async def create_icd_item(db: AsyncSession, data: IcdItemCreate) -> IcdItem:
     await _require_live_period(db, data.period_id)
-    item = IcdItem(**data.model_dump())
+    code = await next_code(
+        db, IcdItem, _CODE_PREFIXES[data.item_type], data.project_id,
+        extra_filter=IcdItem.item_type == data.item_type,
+    )
+    item = IcdItem(**data.model_dump(), code=code)
     db.add(item)
     await db.commit()
     await db.refresh(item)

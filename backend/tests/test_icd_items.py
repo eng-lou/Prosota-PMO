@@ -25,6 +25,7 @@ async def _create(client: AsyncClient, project: Project, period: Period, **kwarg
 async def test_create_issue(client: AsyncClient, project: Project, live_period: Period):
     item = await _create(client, project, live_period,
         item_type="issue",
+        title="Underground service clash",
         status="open",
         priority="high",
         severity="high",
@@ -41,6 +42,7 @@ async def test_issue_rejects_change_fields(client: AsyncClient, project: Project
         "project_id": str(project.id),
         "period_id": str(live_period.id),
         "item_type": "issue",
+        "title": "Bad issue",
         "cost_impact": "50000.00",  # change field on an issue
     })
     assert resp.status_code == 422
@@ -51,6 +53,7 @@ async def test_issue_rejects_decision_fields(client: AsyncClient, project: Proje
         "project_id": str(project.id),
         "period_id": str(live_period.id),
         "item_type": "issue",
+        "title": "Bad issue",
         "decision_maker": "Client",  # decision field on an issue
     })
     assert resp.status_code == 422
@@ -63,6 +66,7 @@ async def test_issue_rejects_decision_fields(client: AsyncClient, project: Proje
 async def test_create_change(client: AsyncClient, project: Project, live_period: Period):
     item = await _create(client, project, live_period,
         item_type="change",
+        title="Diversion of 450mm water main",
         status="open",
         priority="high",
         cost_impact="75000.00",
@@ -81,6 +85,7 @@ async def test_change_rejects_issue_fields(client: AsyncClient, project: Project
         "project_id": str(project.id),
         "period_id": str(live_period.id),
         "item_type": "change",
+        "title": "Bad change",
         "severity": "high",  # issue field on a change
     })
     assert resp.status_code == 422
@@ -93,6 +98,7 @@ async def test_change_rejects_issue_fields(client: AsyncClient, project: Project
 async def test_create_decision(client: AsyncClient, project: Project, live_period: Period):
     item = await _create(client, project, live_period,
         item_type="decision",
+        title="Approve additional piling works",
         status="open",
         decision_maker="Client Representative",
         required_by="2026-08-01",
@@ -110,6 +116,7 @@ async def test_decision_rejects_change_fields(client: AsyncClient, project: Proj
         "project_id": str(project.id),
         "period_id": str(live_period.id),
         "item_type": "decision",
+        "title": "Bad decision",
         "schedule_impact_days": 7,  # change field on a decision
     })
     assert resp.status_code == 422
@@ -120,9 +127,9 @@ async def test_decision_rejects_change_fields(client: AsyncClient, project: Proj
 # ---------------------------------------------------------------------------
 
 async def test_list_all_types(client: AsyncClient, project: Project, live_period: Period):
-    await _create(client, project, live_period, item_type="issue", severity="low")
-    await _create(client, project, live_period, item_type="change", cost_impact="10000.00")
-    await _create(client, project, live_period, item_type="decision", decision_maker="PM")
+    await _create(client, project, live_period, item_type="issue", title="Issue A", severity="low")
+    await _create(client, project, live_period, item_type="change", title="Change A", cost_impact="10000.00")
+    await _create(client, project, live_period, item_type="decision", title="Decision A", decision_maker="PM")
 
     resp = await client.get("/api/v1/icd-items/", params={"project_id": str(project.id)})
     assert resp.status_code == 200
@@ -130,9 +137,9 @@ async def test_list_all_types(client: AsyncClient, project: Project, live_period
 
 
 async def test_filter_by_item_type(client: AsyncClient, project: Project, live_period: Period):
-    await _create(client, project, live_period, item_type="issue", severity="medium")
-    await _create(client, project, live_period, item_type="issue", severity="high")
-    await _create(client, project, live_period, item_type="change", cost_impact="5000.00")
+    await _create(client, project, live_period, item_type="issue", title="Issue A", severity="medium")
+    await _create(client, project, live_period, item_type="issue", title="Issue B", severity="high")
+    await _create(client, project, live_period, item_type="change", title="Change A", cost_impact="5000.00")
 
     issues = (await client.get("/api/v1/icd-items/", params={
         "project_id": str(project.id),
@@ -143,7 +150,7 @@ async def test_filter_by_item_type(client: AsyncClient, project: Project, live_p
 
 
 async def test_get_icd_item(client: AsyncClient, project: Project, live_period: Period):
-    item = await _create(client, project, live_period, item_type="issue", severity="critical")
+    item = await _create(client, project, live_period, item_type="issue", title="Critical issue", severity="critical")
     resp = await client.get(f"/api/v1/icd-items/{item['id']}")
     assert resp.status_code == 200
     assert resp.json()["severity"] == "critical"
@@ -154,7 +161,7 @@ async def test_get_icd_item_not_found(client: AsyncClient):
 
 
 async def test_update_icd_item(client: AsyncClient, project: Project, live_period: Period):
-    item = await _create(client, project, live_period, item_type="issue", severity="low", status="open")
+    item = await _create(client, project, live_period, item_type="issue", title="Low issue", severity="low", status="open")
     resp = await client.patch(f"/api/v1/icd-items/{item['id']}", json={"status": "closed", "severity": "medium"})
     assert resp.status_code == 200
     assert resp.json()["status"] == "closed"
@@ -162,7 +169,7 @@ async def test_update_icd_item(client: AsyncClient, project: Project, live_perio
 
 
 async def test_delete_icd_item(client: AsyncClient, project: Project, live_period: Period):
-    item = await _create(client, project, live_period, item_type="decision", decision_maker="Architect")
+    item = await _create(client, project, live_period, item_type="decision", title="Decision to delete", decision_maker="Architect")
     assert (await client.delete(f"/api/v1/icd-items/{item['id']}")).status_code == 204
     assert (await client.get(f"/api/v1/icd-items/{item['id']}")).status_code == 404
 
@@ -172,6 +179,7 @@ async def test_create_rejects_frozen_period(client: AsyncClient, project: Projec
         "project_id": str(project.id),
         "period_id": str(frozen_period.id),
         "item_type": "issue",
+        "title": "Frozen period issue",
         "severity": "low",
     })
     assert resp.status_code == 422
@@ -185,8 +193,8 @@ async def test_icd_items_linkable_as_typed_record_types(
     client: AsyncClient, project: Project, live_period: Period
 ):
     """A Change and an Issue can be linked; the link uses their ICD sub-type as the record_type."""
-    change = await _create(client, project, live_period, item_type="change", cost_impact="50000.00")
-    issue = await _create(client, project, live_period, item_type="issue", severity="high")
+    change = await _create(client, project, live_period, item_type="change", title="Water main diversion", cost_impact="50000.00")
+    issue = await _create(client, project, live_period, item_type="issue", title="Water main clash", severity="high")
 
     link = (await client.post("/api/v1/record-links/", json={
         "source_type": "change",

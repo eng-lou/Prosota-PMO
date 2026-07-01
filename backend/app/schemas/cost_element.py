@@ -57,6 +57,7 @@ class CostElementResponse(CostElementBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    code: str
     project_id: uuid.UUID
     period_id: uuid.UUID
     created_at: datetime

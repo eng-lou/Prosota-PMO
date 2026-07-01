@@ -5,6 +5,8 @@ import { AuthTokenProvider } from './lib/AuthTokenProvider'
 import { ProjectProvider, useProject } from './lib/ProjectContext'
 import { ProjectSelector } from './modules/projects/ProjectSelector'
 import { RiskRegister } from './modules/risks/RiskRegister'
+import { CostPlan } from './modules/costs/CostPlan'
+import { IcdTracker } from './modules/icd/IcdTracker'
 
 const Placeholder = ({ title }: { title: string }) => (
   <div className="p-8">
@@ -54,8 +56,8 @@ function AuthenticatedApp() {
           <Route path="/dashboard" element={<Placeholder title="Controls Dashboard" />} />
           <Route path="/scheduling" element={<Placeholder title="Scheduling" />} />
           <Route path="/risks" element={<RiskRegister />} />
-          <Route path="/costs" element={<Placeholder title="Cost Plan" />} />
-          <Route path="/icd" element={<Placeholder title="ICD Tracker" />} />
+          <Route path="/costs" element={<CostPlan />} />
+          <Route path="/icd" element={<IcdTracker />} />
           <Route path="/files" element={<Placeholder title="File Manager" />} />
           <Route path="/periods" element={<Placeholder title="Period Manager" />} />
           <Route path="/exports" element={<Placeholder title="Export Centre" />} />
