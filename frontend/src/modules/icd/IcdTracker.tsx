@@ -3,6 +3,7 @@ import { api } from '@/lib/api'
 import { useProject } from '@/lib/ProjectContext'
 import { useActivePeriod } from '@/lib/usePeriod'
 import { RecordLinks, type LinkCandidate } from '@/components/RecordLinks'
+import { ReassessmentLog } from '@/components/ReassessmentLog'
 import { downloadIcdItemsCsv } from './exportIcdItems'
 import { IcdActionItems } from './IcdActionItems'
 import { IcdComments } from './IcdComments'
@@ -10,7 +11,6 @@ import { IcdCriteriaThresholds } from './IcdCriteriaThresholds'
 import { IcdKpiStrip } from './IcdKpiStrip'
 import { IcdForm, toIcdPayload, type IcdFormValues } from './IcdForm'
 import { IcdPrintView } from './IcdPrintView'
-import { IcdReassessments } from './IcdReassessments'
 import { ITEM_TYPE_LABELS, ITEM_TYPES, PRIORITIES, PRIORITY_LABELS, STATUS_LABELS, type IcdItem, type ItemType } from './types'
 
 interface RiskSummary { id: string; code: string; title: string }
@@ -166,7 +166,7 @@ export function IcdTracker() {
     if (!editingItem) return
     await api.patch(`/api/v1/icd-items/${editingItem.id}`, toIcdPayload(values))
     if (reassessmentNote) {
-      await api.post('/api/v1/icd-reassessments/', { icd_item_id: editingItem.id, note: reassessmentNote })
+      await api.post('/api/v1/reassessments/', { record_type: 'icd_item', record_id: editingItem.id, note: reassessmentNote })
       setReassessmentRefreshKey(k => k + 1)
     }
     setEditingItem(null)
@@ -301,8 +301,9 @@ export function IcdTracker() {
               </div>
             )}
             <IcdActionItems icdItemId={item.id} />
-            <IcdReassessments
-              icdItemId={item.id}
+            <ReassessmentLog
+              recordType="icd_item"
+              recordId={item.id}
               refreshKey={reassessmentRefreshKey}
               onLogged={() => refreshItems()}
             />

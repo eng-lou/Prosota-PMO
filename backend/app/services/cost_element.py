@@ -4,13 +4,17 @@ import uuid
 from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cost_element import CostElement
 from app.models.period import Period
+from app.models.project import Project
 from app.schemas.cost_element import CostElementCreate, CostElementResponse, CostElementUpdate
 from app.services.reference_codes import next_code
+
+_MONEY = Decimal("0.01")
+_RATIO = Decimal("0.0001")
 
 
 async def _require_live_period(db: AsyncSession, period_id: uuid.UUID) -> None:
@@ -24,30 +28,108 @@ async def _require_live_period(db: AsyncSession, period_id: uuid.UUID) -> None:
         )
 
 
+def _element_forecast(
+    budget: Decimal | None, actuals: Decimal | None, pct_complete: int | None
+) -> Decimal | None:
+    """forecast IS the computed EAC (Estimate at Completion) — the same concept as
+    "what do we now expect this line to finally cost", not a separate manual figure.
+    Falls back to budget before any progress has been assessed."""
+    if budget is None:
+        return None
+    budget = Decimal(str(budget))
+    if pct_complete is not None and actuals is not None:
+        actuals = Decimal(str(actuals))
+        if actuals != 0:
+            ev = budget * Decimal(pct_complete) / Decimal(100)
+            cpi = ev / actuals
+            if cpi != 0:
+                return (budget / cpi).quantize(_MONEY)
+    return budget.quantize(_MONEY)
+
+
 async def _fixed_subtotals(
     db: AsyncSession, project_id: uuid.UUID, period_id: uuid.UUID
 ) -> tuple[Decimal, Decimal, Decimal]:
-    """Return (sum_budget, sum_forecast, sum_actuals) for all fixed elements in this project/period."""
-    q = select(
-        func.coalesce(func.sum(CostElement.budget), 0).label("budget"),
-        func.coalesce(func.sum(CostElement.forecast), 0).label("forecast"),
-        func.coalesce(func.sum(CostElement.actuals), 0).label("actuals"),
-    ).where(
+    """Return (sum_budget, sum_forecast, sum_actuals) for all fixed elements in this
+    project/period. sum_forecast is the sum of each element's derived forecast
+    (EAC, or budget before any progress is assessed) — computed in Python since
+    forecast is no longer a stored column."""
+    q = select(CostElement.budget, CostElement.actuals, CostElement.pct_complete).where(
         CostElement.project_id == project_id,
         CostElement.period_id == period_id,
         CostElement.element_type == "fixed",
     )
-    row = (await db.execute(q)).one()
-    return Decimal(str(row.budget)), Decimal(str(row.forecast)), Decimal(str(row.actuals))
+    rows = (await db.execute(q)).all()
+    sum_budget = sum((Decimal(str(r.budget)) for r in rows if r.budget is not None), Decimal(0))
+    sum_actuals = sum((Decimal(str(r.actuals)) for r in rows if r.actuals is not None), Decimal(0))
+    sum_forecast = sum(
+        (_element_forecast(r.budget, r.actuals, r.pct_complete) or Decimal(0) for r in rows), Decimal(0)
+    )
+    return sum_budget, sum_forecast, sum_actuals
 
 
-def _apply_computed(element: CostElement, sub_budget: Decimal, sub_forecast: Decimal, sub_actuals: Decimal) -> CostElementResponse:
+async def _project_gfa(db: AsyncSession, project_id: uuid.UUID) -> Decimal | None:
+    project = await db.get(Project, project_id)
+    if project is None or project.gfa_m2 is None or project.gfa_m2 == 0:
+        return None
+    return Decimal(str(project.gfa_m2))
+
+
+def _apply_computed(
+    element: CostElement,
+    sub_budget: Decimal,
+    sub_forecast: Decimal,
+    sub_actuals: Decimal,
+    gfa_m2: Decimal | None,
+) -> CostElementResponse:
     data = CostElementResponse.model_validate(element)
+
     if element.element_type == "percentage" and element.rate is not None:
         rate = Decimal(str(element.rate))
-        data.computed_budget = (rate * sub_budget).quantize(Decimal("0.01"))
-        data.computed_forecast = (rate * sub_forecast).quantize(Decimal("0.01"))
-        data.computed_actuals = (rate * sub_actuals).quantize(Decimal("0.01"))
+        data.computed_budget = (rate * sub_budget).quantize(_MONEY)
+        data.computed_forecast = (rate * sub_forecast).quantize(_MONEY)
+        data.computed_actuals = (rate * sub_actuals).quantize(_MONEY)
+    else:
+        data.forecast = _element_forecast(element.budget, element.actuals, element.pct_complete)
+
+    # BAC/AC resolve to the computed value for percentage elements, the stored value for
+    # fixed elements — everything below is derived from these two, plus pct_complete and
+    # rev_a_baseline, never accepted as API input.
+    #
+    # Only cost-side EVM (CV/CPI/EAC/ETC/VAC/TCPI) is computed here. Schedule-side EVM
+    # (SV/SPI) needs a genuine time-phased planned value — "how much should have been
+    # done by this date on the schedule" — which doesn't exist without the Scheduling
+    # module. Without it, SV/SPI would just be budget x pct_complete restated as a second
+    # number (SPI would always equal pct_complete/100 exactly), not an independent schedule
+    # signal. Deliberately left out rather than shown wrong; revisit once Scheduling exists.
+    bac = data.computed_budget if element.element_type == "percentage" else element.budget
+    ac = data.computed_actuals if element.element_type == "percentage" else element.actuals
+    bac = Decimal(str(bac)) if bac is not None else None
+    ac = Decimal(str(ac)) if ac is not None else None
+
+    if bac is not None and element.rev_a_baseline is not None:
+        data.variance = (bac - Decimal(str(element.rev_a_baseline))).quantize(_MONEY)
+
+    if bac is not None and gfa_m2 is not None:
+        data.cost_per_m2 = (bac / gfa_m2).quantize(_MONEY)
+
+    ev: Decimal | None = None
+    if bac is not None and element.pct_complete is not None:
+        ev = (bac * Decimal(element.pct_complete) / Decimal(100)).quantize(_MONEY)
+
+    if ev is not None and ac is not None:
+        data.cv = (ev - ac).quantize(_MONEY)
+    if ev is not None and ac is not None and ac != 0:
+        data.cpi = (ev / ac).quantize(_RATIO)
+    if bac is not None and data.cpi is not None and data.cpi != 0:
+        data.eac = (bac / data.cpi).quantize(_MONEY)
+    if data.eac is not None and ac is not None:
+        data.etc = (data.eac - ac).quantize(_MONEY)
+    if bac is not None and data.eac is not None:
+        data.vac = (bac - data.eac).quantize(_MONEY)
+    if bac is not None and ev is not None and ac is not None and (bac - ac) != 0:
+        data.tcpi = ((bac - ev) / (bac - ac)).quantize(_RATIO)
+
     return data
 
 
@@ -61,6 +143,8 @@ async def list_cost_elements(
         q = q.where(CostElement.period_id == period_id)
     elements = list((await db.execute(q)).scalars().all())
 
+    gfa_m2 = await _project_gfa(db, project_id)
+
     # Group percentage calculations by period to avoid N+1 subtotal queries
     period_subtotals: dict[uuid.UUID, tuple[Decimal, Decimal, Decimal]] = {}
     for el in elements:
@@ -71,9 +155,9 @@ async def list_cost_elements(
     for el in elements:
         if el.element_type == "percentage":
             subs = period_subtotals[el.period_id]
-            results.append(_apply_computed(el, *subs))
         else:
-            results.append(CostElementResponse.model_validate(el))
+            subs = (Decimal(0), Decimal(0), Decimal(0))
+        results.append(_apply_computed(el, *subs, gfa_m2))
     return results
 
 
@@ -81,16 +165,24 @@ async def get_cost_element(db: AsyncSession, element_id: uuid.UUID) -> CostEleme
     el = await db.get(CostElement, element_id)
     if el is None:
         raise HTTPException(status_code=404, detail="Cost element not found")
+    gfa_m2 = await _project_gfa(db, el.project_id)
     if el.element_type == "percentage":
         subs = await _fixed_subtotals(db, el.project_id, el.period_id)
-        return _apply_computed(el, *subs)
-    return CostElementResponse.model_validate(el)
+    else:
+        subs = (Decimal(0), Decimal(0), Decimal(0))
+    return _apply_computed(el, *subs, gfa_m2)
 
 
 async def create_cost_element(db: AsyncSession, data: CostElementCreate) -> CostElementResponse:
     await _require_live_period(db, data.period_id)
     code = await next_code(db, CostElement, "CST", data.project_id)
     el = CostElement(**data.model_dump(), code=code)
+    # rev_a_baseline is not a separate input — the budget entered now IS the baseline,
+    # since there's no prior revision to compare against yet. Frozen from here on;
+    # routine budget updates never touch it (a genuine re-baseline would be a distinct,
+    # deliberate action, not implemented yet).
+    if el.element_type == "fixed":
+        el.rev_a_baseline = el.budget
     db.add(el)
     await db.commit()
     await db.refresh(el)

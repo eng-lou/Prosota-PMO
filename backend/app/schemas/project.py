@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -10,12 +11,16 @@ class ProjectCreate(BaseModel):
     name: str
     client_name: str | None = None
     status: str = "active"
+    gfa_m2: Decimal | None = None
+    space_count: int | None = None
 
 
 class ProjectUpdate(BaseModel):
     name: str | None = None
     client_name: str | None = None
     status: str | None = None
+    gfa_m2: Decimal | None = None
+    space_count: int | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -26,5 +31,7 @@ class ProjectResponse(BaseModel):
     name: str
     client_name: str | None
     status: str
+    gfa_m2: Decimal | None
+    space_count: int | None
     created_at: datetime
     updated_at: datetime

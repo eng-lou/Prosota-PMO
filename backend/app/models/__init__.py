@@ -6,10 +6,16 @@ from app.models.period import Period
 from app.models.activity import Activity
 from app.models.risk import Risk
 from app.models.risk_mitigation_action import RiskMitigationAction
-from app.models.risk_reassessment import RiskReassessment
 from app.models.risk_criteria import RiskProbabilityCriterion, RiskImpactCriterion
 from app.models.cost_element import CostElement
+from app.models.cost_variance_criterion import CostVarianceCriterion
+from app.models.cost_rate_line import CostRateLine
+from app.models.cost_commitment import CostCommitment
 from app.models.icd_item import IcdItem
+from app.models.icd_criteria import IcdCriterion
+from app.models.icd_action_item import IcdActionItem
+from app.models.icd_comment import IcdComment
+from app.models.reassessment import Reassessment
 from app.models.record_link import RecordLink
 
 __all__ = [
@@ -21,10 +27,16 @@ __all__ = [
     "Activity",
     "Risk",
     "RiskMitigationAction",
-    "RiskReassessment",
     "RiskProbabilityCriterion",
     "RiskImpactCriterion",
     "CostElement",
+    "CostVarianceCriterion",
+    "CostRateLine",
+    "CostCommitment",
     "IcdItem",
+    "IcdCriterion",
+    "IcdActionItem",
+    "IcdComment",
+    "Reassessment",
     "RecordLink",
 ]

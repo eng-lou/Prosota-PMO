@@ -4,9 +4,9 @@ import { useProject } from '@/lib/ProjectContext'
 import { useActivePeriod } from '@/lib/usePeriod'
 import { RecordLinks, type LinkCandidate } from '@/components/RecordLinks'
 import { HeatMatrix } from '@/components/HeatMatrix'
+import { ReassessmentLog } from '@/components/ReassessmentLog'
 import { RiskForm, toRiskPayload, type RiskFormValues } from './RiskForm'
 import { MitigationActions } from './MitigationActions'
-import { RiskReassessments } from './RiskReassessments'
 import { CriteriaThresholds } from './CriteriaThresholds'
 import { downloadRisksCsv } from './exportRisks'
 import { RiskPrintView } from './RiskPrintView'
@@ -177,7 +177,7 @@ export function RiskRegister() {
     if (!editingRisk) return
     await api.patch(`/api/v1/risks/${editingRisk.id}`, toRiskPayload(values))
     if (reassessmentNote) {
-      await api.post('/api/v1/risk-reassessments/', { risk_id: editingRisk.id, note: reassessmentNote })
+      await api.post('/api/v1/reassessments/', { record_type: 'risk', record_id: editingRisk.id, note: reassessmentNote })
       setReassessmentRefreshKey(k => k + 1)
     }
     setEditingRisk(null)
@@ -280,8 +280,9 @@ export function RiskRegister() {
               </div>
             )}
             <MitigationActions riskId={risk.id} />
-            <RiskReassessments
-              riskId={risk.id}
+            <ReassessmentLog
+              recordType="risk"
+              recordId={risk.id}
               refreshKey={reassessmentRefreshKey}
               onLogged={() => refreshRisks()}
             />

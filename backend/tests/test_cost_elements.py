@@ -32,13 +32,13 @@ async def test_create_fixed_element(client: AsyncClient, project: Project, live_
         description="Substructure",
         element_group="Structure",
         budget="500000.00",
-        forecast="520000.00",
         actuals="250000.00",
     )
     assert el["element_type"] == "fixed"
     assert el["rate"] is None
     assert float(el["budget"]) == 500000.00
     assert el["computed_budget"] is None  # fixed elements have no computed value
+    assert float(el["forecast"]) == 500000.00  # no progress assessed yet — budget is the best available forecast
 
 
 async def test_list_cost_elements_by_project(client: AsyncClient, project: Project, live_period: Period):
@@ -66,12 +66,20 @@ async def test_update_cost_element(client: AsyncClient, project: Project, live_p
     el = await _create(client, project, live_period, description="FF&E", budget="80000.00")
     resp = await client.patch(f"/api/v1/cost-elements/{el['id']}", json={
         "budget": "90000.00",
-        "forecast": "88000.00",
     })
     assert resp.status_code == 200
     assert float(resp.json()["budget"]) == 90000.00
-    assert float(resp.json()["forecast"]) == 88000.00
+    assert float(resp.json()["forecast"]) == 90000.00  # forecast IS the computed EAC/budget fallback, not a separate input
     assert resp.json()["description"] == "FF&E"  # unchanged
+
+
+async def test_forecast_is_eac_once_progress_assessed(client: AsyncClient, project: Project, live_period: Period):
+    """forecast is not a separate manual field — it's the same concept as EAC."""
+    el = await _create(client, project, live_period,
+        description="Piling", budget="400000.00", actuals="160000.00", pct_complete=50,
+    )
+    assert float(el["eac"]) == 320000.00
+    assert float(el["forecast"]) == 320000.00
 
 
 async def test_delete_cost_element(client: AsyncClient, project: Project, live_period: Period):
@@ -82,16 +90,64 @@ async def test_delete_cost_element(client: AsyncClient, project: Project, live_p
 
 
 # ---------------------------------------------------------------------------
+# General-tab field gaps (owner, status, scope/variance notes, QS sign-off)
+# ---------------------------------------------------------------------------
+
+async def test_create_element_with_general_fields(client: AsyncClient, project: Project, live_period: Period):
+    el = await _create(client, project, live_period,
+        description="Piling (CFA 300/600mm dia.)",
+        element_group="Substructure",
+        budget="354451.00",
+        cost_owner="M. Azra",
+        status="approved",
+        scope_note="267nr CFA piles to 8.5m. Includes rig mobilisation, integrity testing.",
+        variance_commentary="Rate revised £450→£576/nr at tender. Quantity 218→267nr.",
+        qs_signoff_name="M. Azra",
+        qs_signoff_date="2025-05-21",
+    )
+    assert el["cost_owner"] == "M. Azra"
+    assert el["status"] == "approved"
+    assert el["scope_note"] == "267nr CFA piles to 8.5m. Includes rig mobilisation, integrity testing."
+    assert el["variance_commentary"] == "Rate revised £450→£576/nr at tender. Quantity 218→267nr."
+    assert el["qs_signoff_name"] == "M. Azra"
+    assert el["qs_signoff_date"] == "2025-05-21"
+
+
+async def test_invalid_status_rejected(client: AsyncClient, project: Project, live_period: Period):
+    resp = await client.post("/api/v1/cost-elements/", json={
+        "project_id": str(project.id),
+        "period_id": str(live_period.id),
+        "description": "Bad status",
+        "status": "over_budget",  # not a valid workflow status — that's a computed variance band, not stored
+    })
+    assert resp.status_code == 422
+
+
+async def test_update_general_fields(client: AsyncClient, project: Project, live_period: Period):
+    el = await _create(client, project, live_period, description="Lifts", budget="242085.00")
+    resp = await client.patch(f"/api/v1/cost-elements/{el['id']}", json={
+        "cost_owner": "M&E Lead", "status": "cr_pending",
+    })
+    assert resp.status_code == 200
+    assert resp.json()["cost_owner"] == "M&E Lead"
+    assert resp.json()["status"] == "cr_pending"
+
+
+# ---------------------------------------------------------------------------
 # Percentage elements — core mechanic
 # ---------------------------------------------------------------------------
 
 async def test_percentage_element_computed_from_fixed_subtotal(
     client: AsyncClient, project: Project, live_period: Period
 ):
-    """Prelims at 15% should compute against the live sum of fixed element budgets."""
-    await _create(client, project, live_period, description="Substructure", budget="400000.00", forecast="420000.00", actuals="200000.00")
-    await _create(client, project, live_period, description="Superstructure", budget="600000.00", forecast="610000.00", actuals="300000.00")
-    # Fixed subtotals: budget=1,000,000 | forecast=1,030,000 | actuals=500,000
+    """Prelims at 15% should compute against the live sum of fixed elements —
+    forecast subtotal uses each fixed element's derived forecast (EAC once
+    progress exists), not budget, so it must differ from the budget subtotal."""
+    # Substructure: EV=200,000, CPI=200,000/160,000=1.25, EAC=400,000/1.25=320,000
+    await _create(client, project, live_period, description="Substructure", budget="400000.00", actuals="160000.00", pct_complete=50)
+    # Superstructure: EV=300,000, CPI=300,000/400,000=0.75, EAC=600,000/0.75=800,000
+    await _create(client, project, live_period, description="Superstructure", budget="600000.00", actuals="400000.00", pct_complete=50)
+    # Fixed subtotals: budget=1,000,000 | forecast(EAC)=1,120,000 | actuals=560,000
 
     prelims = await _create(client, project, live_period,
         description="Prelims",
@@ -101,8 +157,8 @@ async def test_percentage_element_computed_from_fixed_subtotal(
     assert prelims["element_type"] == "percentage"
     assert prelims["budget"] is None           # not stored
     assert float(prelims["computed_budget"]) == 150000.00    # 15% of 1,000,000
-    assert float(prelims["computed_forecast"]) == 154500.00  # 15% of 1,030,000
-    assert float(prelims["computed_actuals"]) == 75000.00    # 15% of 500,000
+    assert float(prelims["computed_forecast"]) == 168000.00  # 15% of 1,120,000 (EAC subtotal, not budget)
+    assert float(prelims["computed_actuals"]) == 84000.00     # 15% of 560,000
 
 
 async def test_percentage_computed_value_updates_when_fixed_changes(
@@ -186,6 +242,105 @@ async def test_fixed_element_rejects_rate(client: AsyncClient, project: Project,
         "rate": "0.15",
     })
     assert resp.status_code == 422
+
+
+async def test_negative_rate_accepted_for_credit_elements(client: AsyncClient, project: Project, live_period: Period):
+    """A percentage element can represent a genuine credit/deduction (e.g. MCD) — rate
+    must allow negative values, not just positive on-costs."""
+    await _create(client, project, live_period, description="Base works", budget="1000000.00")
+    mcd = await _create(client, project, live_period,
+        description="MCD Credit", element_type="percentage", rate="-0.0196", status="credit",
+    )
+    assert float(mcd["rate"]) == -0.0196
+    assert float(mcd["computed_budget"]) == -19600.00
+
+
+# ---------------------------------------------------------------------------
+# Real Earned Value Management (Rita Mulcahy Ch. 9)
+# ---------------------------------------------------------------------------
+
+async def test_evm_computed_from_budget_actuals_and_pct_complete(
+    client: AsyncClient, project: Project, live_period: Period
+):
+    """BAC=budget, AC=actuals, EV=BAC*pct_complete/100 — cost-side EVM only
+    (CV=EV-AC, CPI=EV/AC, EAC=BAC/CPI, ETC=EAC-AC, VAC=BAC-EAC,
+    TCPI=(BAC-EV)/(BAC-AC)). Schedule-side EVM (SV/SPI) is deliberately not
+    computed/exposed — it would need a real time-phased planned value, which
+    doesn't exist without the Scheduling module; without it SPI would just
+    equal pct_complete/100 restated, not an independent schedule signal."""
+    el = await _create(client, project, live_period,
+        description="Piling", budget="100000.00", actuals="80000.00", pct_complete=70,
+    )
+    assert float(el["cv"]) == -10000.00    # EV(70000) - AC(80000)
+    assert "sv" not in el
+    assert "spi" not in el
+    assert float(el["cpi"]) == 0.875       # 70000 / 80000
+    assert float(el["eac"]) == 114285.71   # BAC / CPI
+    assert float(el["etc"]) == 34285.71    # EAC - AC
+    assert float(el["vac"]) == -14285.71   # BAC - EAC
+    assert float(el["tcpi"]) == 1.5        # (BAC-EV) / (BAC-AC)
+
+
+async def test_evm_fields_null_without_pct_complete(client: AsyncClient, project: Project, live_period: Period):
+    """No premature computation — EVM stays null until a real progress assessment exists."""
+    el = await _create(client, project, live_period, description="Roofing", budget="50000.00", actuals="10000.00")
+    assert el["cv"] is None
+    assert el["cpi"] is None
+    assert el["eac"] is None
+
+
+async def test_rev_a_baseline_auto_set_from_budget_on_creation(
+    client: AsyncClient, project: Project, live_period: Period
+):
+    """rev_a_baseline is not a separate input — the budget entered now IS the
+    baseline, since there's no prior revision to compare against yet."""
+    el = await _create(client, project, live_period, description="Steelwork", budget="2150000.00")
+    assert float(el["rev_a_baseline"]) == 2150000.00
+    assert float(el["variance"]) == 0.00  # budget == baseline at creation
+
+
+async def test_rev_a_baseline_frozen_after_budget_updates(
+    client: AsyncClient, project: Project, live_period: Period
+):
+    """Once set, the baseline must not move when budget changes later — otherwise
+    variance would always read zero and the whole point of a baseline is lost."""
+    el = await _create(client, project, live_period, description="Steelwork", budget="2150000.00")
+
+    resp = await client.patch(f"/api/v1/cost-elements/{el['id']}", json={"budget": "2290467.00"})
+    assert resp.status_code == 200
+    assert float(resp.json()["rev_a_baseline"]) == 2150000.00  # frozen, unchanged
+    assert float(resp.json()["variance"]) == 140467.00
+
+
+async def test_rev_a_baseline_rejected_as_manual_input(client: AsyncClient, project: Project, live_period: Period):
+    """rev_a_baseline is server-managed — sending it directly should have no effect
+    (it's not part of the accepted schema, same discipline as EAC/CPI)."""
+    resp = await client.post("/api/v1/cost-elements/", json={
+        "project_id": str(project.id), "period_id": str(live_period.id),
+        "description": "Bad baseline", "budget": "100000.00", "rev_a_baseline": "999999.00",
+    })
+    assert resp.status_code == 201
+    assert float(resp.json()["rev_a_baseline"]) == 100000.00  # ignored — set from budget, not the submitted value
+
+
+async def test_percentage_element_has_no_baseline(client: AsyncClient, project: Project, live_period: Period):
+    """Percentage elements (Prelims, Contingency) have no budget of their own, so
+    no baseline concept applies — matches the prototype's "—" for these rows."""
+    await _create(client, project, live_period, description="Works", budget="1000000.00")
+    prelims = await _create(client, project, live_period, description="Prelims", element_type="percentage", rate="0.15")
+    assert prelims["rev_a_baseline"] is None
+
+
+async def test_cost_per_m2_computed_from_project_gfa(client: AsyncClient, project: Project, live_period: Period):
+    await client.patch(f"/api/v1/projects/{project.id}", json={"gfa_m2": "17500.00"})
+    el = await _create(client, project, live_period, description="Piling", budget="354451.00")
+    assert float(el["cost_per_m2"]) == round(354451.00 / 17500.00, 2)
+
+
+async def test_cost_per_m2_null_when_project_gfa_not_set(client: AsyncClient, project: Project, live_period: Period):
+    """GFA is optional — not every project has a meaningful floor area."""
+    el = await _create(client, project, live_period, description="Piling", budget="354451.00")
+    assert el["cost_per_m2"] is None
 
 
 async def test_create_rejects_frozen_period(client: AsyncClient, project: Project, frozen_period: Period):

@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
-import type { IcdReassessment } from './types'
 
-interface IcdReassessmentsProps {
-  icdItemId: string
+export interface Reassessment {
+  id: string
+  record_type: string
+  record_id: string
+  note: string
+  reviewed_at: string
+}
+
+interface ReassessmentLogProps {
+  recordType: string
+  recordId: string
   refreshKey: number
   onLogged: () => void
 }
@@ -12,13 +20,15 @@ function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-// History of "what changed and why" — distinct from resolution (a single
-// current-state field). Most entries come from IcdForm's automatic prompt
-// when a trigger field changes; the quick-add button covers the case where a
-// review happened but nothing actually changed. Editable/deletable, like the
-// Risk module's reassessment log — a working log, not a strict audit trail.
-export function IcdReassessments({ icdItemId, refreshKey, onLogged }: IcdReassessmentsProps) {
-  const [entries, setEntries] = useState<IcdReassessment[]>([])
+// Shared "what changed and why" log — the third use of this exact pattern
+// (Risk, then ICD, now Cost Plan), generalised behind the polymorphic
+// /api/v1/reassessments/ endpoint instead of being copied a third time.
+// Most entries come from a form's automatic prompt when a trigger field
+// changes; the quick-add button covers the case where a review happened but
+// nothing actually changed. Editable/deletable — a working log, not a
+// strict audit trail.
+export function ReassessmentLog({ recordType, recordId, refreshKey, onLogged }: ReassessmentLogProps) {
+  const [entries, setEntries] = useState<Reassessment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -28,19 +38,19 @@ export function IcdReassessments({ icdItemId, refreshKey, onLogged }: IcdReasses
 
   const load = () => {
     setLoading(true)
-    api.get<IcdReassessment[]>('/api/v1/icd-reassessments/', { params: { icd_item_id: icdItemId } })
+    api.get<Reassessment[]>('/api/v1/reassessments/', { params: { record_type: recordType, record_id: recordId } })
       .then(r => setEntries(r.data))
       .catch(() => setError('Failed to load reassessment history'))
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [icdItemId, refreshKey])
+  useEffect(load, [recordType, recordId, refreshKey])
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!note.trim()) return
     try {
-      await api.post('/api/v1/icd-reassessments/', { icd_item_id: icdItemId, note: note.trim() })
+      await api.post('/api/v1/reassessments/', { record_type: recordType, record_id: recordId, note: note.trim() })
       setNote('')
       setAdding(false)
       load()
@@ -50,7 +60,7 @@ export function IcdReassessments({ icdItemId, refreshKey, onLogged }: IcdReasses
     }
   }
 
-  const startEdit = (entry: IcdReassessment) => {
+  const startEdit = (entry: Reassessment) => {
     setEditingId(entry.id)
     setEditingNote(entry.note)
   }
@@ -59,7 +69,7 @@ export function IcdReassessments({ icdItemId, refreshKey, onLogged }: IcdReasses
     e.preventDefault()
     if (!editingId || !editingNote.trim()) return
     try {
-      await api.patch(`/api/v1/icd-reassessments/${editingId}`, { note: editingNote.trim() })
+      await api.patch(`/api/v1/reassessments/${editingId}`, { note: editingNote.trim() })
       setEditingId(null)
       load()
     } catch {
@@ -67,9 +77,9 @@ export function IcdReassessments({ icdItemId, refreshKey, onLogged }: IcdReasses
     }
   }
 
-  const handleDelete = async (entry: IcdReassessment) => {
+  const handleDelete = async (entry: Reassessment) => {
     if (!window.confirm('Delete this reassessment entry? This cannot be undone.')) return
-    await api.delete(`/api/v1/icd-reassessments/${entry.id}`)
+    await api.delete(`/api/v1/reassessments/${entry.id}`)
     load()
   }
 

@@ -37,8 +37,8 @@ class IcdItem(Base, TimestampMixin):
     due_date: Mapped[date | None] = mapped_column(Date)
     closed_date: Mapped[date | None] = mapped_column(Date)
     resolution: Mapped[str | None] = mapped_column(Text)
-    # Bumped automatically whenever a reassessment is logged (see IcdReassessment);
-    # editable directly too, mirroring the Risk module's Monitor-Risks pattern.
+    # Bumped automatically whenever a reassessment is logged (see the generalised
+    # Reassessment model); editable directly too, mirroring the Risk module's Monitor-Risks pattern.
     last_reviewed_date: Mapped[date | None] = mapped_column(Date)
 
     # Change-specific — Integrated Change Control (PMBOK Ch. 4): a change is raised,

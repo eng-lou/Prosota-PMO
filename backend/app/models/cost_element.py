@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Numeric, String
+from sqlalchemy import Date, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,11 +26,27 @@ class CostElement(Base, TimestampMixin):
     rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6))
     element_group: Mapped[str | None] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String(500), nullable=False)
+    # cost_owner = accountable QS/lead for this line, matching the prototype's "Cost Owner".
+    cost_owner: Mapped[str | None] = mapped_column(String(255))
+    # Workflow status only — approved/cr_pending/tbc/credit. Deliberately does NOT include
+    # Over Budget/Monitor/On Budget/Saving (those are a computed variance-band badge against
+    # configurable thresholds, not a manual field — see CostVarianceCriterion) or Applied %
+    # (auto-shown for percentage-type elements).
+    status: Mapped[str | None] = mapped_column(String(20))
+    scope_note: Mapped[str | None] = mapped_column(Text)
+    variance_commentary: Mapped[str | None] = mapped_column(Text)
+    qs_signoff_name: Mapped[str | None] = mapped_column(String(255))
+    qs_signoff_date: Mapped[date | None] = mapped_column(Date)
     budget: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    forecast: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     actuals: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    variance: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    cpi: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
-    spi: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
     rev_a_baseline: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    cost_per_m2: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    # Physical progress assessment (0-100) — a manual progress estimate, the standard
+    # technique for Earned Value without a network-schedule integration: EV = BAC x
+    # pct_complete. forecast/variance/cpi/eac/etc/vac/tcpi/cost_per_m2 are all computed at
+    # query time from this + budget/actuals/rev_a_baseline/project.gfa_m2 — never stored.
+    # forecast is not a separate field: it IS the computed EAC (same concept, "what do we
+    # now expect this to finally cost"), falling back to budget before any progress exists.
+    pct_complete: Mapped[int | None] = mapped_column(Integer)
+    # Bumped automatically whenever a reassessment is logged (see Reassessment);
+    # editable directly too, mirroring Risk/ICD's Monitor-Costs pattern.
+    last_reviewed_date: Mapped[date | None] = mapped_column(Date)

@@ -35,7 +35,7 @@ class RiskBase(BaseModel):
     risk_owner: str | None = None
     # date_raised matches the prototype's "Date Identified"; last_reviewed_date matches
     # its "Last Reviewed" (also auto-bumped whenever a reassessment is logged — see
-    # RiskReassessment). expected_impact_date is Ch.12's risk factor "expected timing
+    # the generalised Reassessment schema). expected_impact_date is Ch.12's risk factor "expected timing
     # for it to occur in the project life cycle" — when the risk would materialise.
     date_raised: date | None = None
     date_closed: date | None = None

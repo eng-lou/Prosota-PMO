@@ -29,7 +29,7 @@ class Risk(Base, TimestampMixin):
     risk_owner: Mapped[str | None] = mapped_column(String(255))
     # Key dates. date_raised matches the prototype's "Date Identified"; last_reviewed_date
     # matches its "Last Reviewed" (also auto-bumped whenever a reassessment is logged —
-    # see RiskReassessment below). expected_impact_date is Ch.12's risk factor "expected
+    # see the generalised Reassessment model). expected_impact_date is Ch.12's risk factor "expected
     # timing for it to occur in the project life cycle" — when the risk would materialise.
     date_raised: Mapped[date | None] = mapped_column(Date)
     date_closed: Mapped[date | None] = mapped_column(Date)
